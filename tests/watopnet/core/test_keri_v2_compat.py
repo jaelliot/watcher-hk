@@ -293,7 +293,15 @@ def test_http_post_rejects_unsupported_keri_ilk(monkeypatch):
 
 
 def test_http_post_maps_event_parser_errors_to_bad_request(monkeypatch):
-    serder = eventing.reply(route="/watcher/add", data={})
+    serder = eventing.reply(
+        pre=CONTROLLER_AID,
+        route="/watcher/add",
+        data={"cid": CONTROLLER_AID},
+        pvrsn=kering.Vrsn_2_0,
+        kind=eventing.Kinds.json,
+    )
+
+    assert kering.deversify(serder.ked["v"]).pvrsn == kering.Vrsn_2_0
     monkeypatch.setattr(
         wat_httping.httping,
         "parseCesrHttpRequest",
