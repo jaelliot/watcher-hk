@@ -104,8 +104,8 @@ def test_adding_watched(mockHelpingNowUTC):
             watHab,
         ),
     ):
-        assert bobHab.pre == "ENsqL5zLYNbZf0kcOlx-ioqNWlatD9rKZZM4hbEI7nza"
-        assert eveHab.pre == "ELiJTS4bBx5gZlT68OjBxFiirP0Qa2XQZ6V5cjHWQR0p"
+        assert bobHab.pre == "EO5CgjiI4SVOuVNj-C5a0k-seIvFDuswAm_dwj5kVJzB"
+        assert eveHab.pre == "EA8E4uOqo21SHo-vcmHcMcdoYAR7mmTR00xAloGBKT4Y"
         assert watHab.pre == "BGbLRtLXIslZvTfYz97dS9_EzQxp8kSTAMMtW-LmlXMI"
 
         db = basing.Baser(name="bob", temp=True)
@@ -117,6 +117,7 @@ def test_adding_watched(mockHelpingNowUTC):
         data = dict(cid=bobHab.pre, oid=eveHab.pre, oobi="http://localhost:2701/oobi")
 
         serder = eventing.reply(
+            pre=bobHab.pre,
             route=route,
             data=data,
         )
@@ -124,10 +125,10 @@ def test_adding_watched(mockHelpingNowUTC):
         assert bytes(ims).startswith(serder.raw)
 
         icp = bobHab.msgOwnInception()
-        watcher.psr.parseOne(icp, version=kering.Vrsn_1_0)
+        watcher.psr.parseOne(icp)
         assert bobHab.pre in watcher.hby.kevers
 
-        watcher.psr.parseOne(ims, version=kering.Vrsn_1_0)
+        watcher.psr.parseOne(ims)
 
         keys = (bobHab.pre, watHab.pre, eveHab.pre)
 
