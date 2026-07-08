@@ -434,8 +434,15 @@ def test_http_put_parses_mixed_version_stream_one_message_at_a_time(monkeypatch)
 def test_http_put_maps_parser_errors_to_bad_request():
     """Map parser-level raw PUT failures to a deliberate client error."""
 
-    # Set up a valid serder
-    serder = eventing.reply(route="/watcher/add", data={})
+    # Set up a valid v2 serder
+    serder = eventing.reply(
+        pre=CONTROLLER_AID,
+        route="/watcher/add",
+        data={"cid": CONTROLLER_AID},
+        pvrsn=kering.Vrsn_2_0,
+        kind=eventing.Kinds.json,
+    )
+    assert kering.deversify(serder.ked["v"]).pvrsn == kering.Vrsn_2_0
 
     # Simulate a deeper parser failure after ingress validation succeeds
     def fail_parse_one(**kwa):
