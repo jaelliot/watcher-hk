@@ -553,8 +553,11 @@ def test_query_replies_are_normalized_to_fixed_v2_cesr(monkeypatch):
                     src=WATCHER_AID,
                     route="/ksn",
                     serder=eventing.reply(
+                        pre=WATCHER_AID,
                         route=f"/ksn/{WATCHER_AID}",
                         data={"i": OBSERVED_AID},
+                        pvrsn=kering.Vrsn_2_0,
+                        kind=eventing.Kinds.cesr,
                     ),
                     dest=source.qb64,
                 )
