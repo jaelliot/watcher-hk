@@ -177,7 +177,11 @@ def test_http_query_parser_uses_inbound_keri10_version(monkeypatch):
         pre=CONTROLLER_AID,
         route="ksn",
         query={"src": WATCHER_AID},
+        pvrsn=kering.Vrsn_1_0,
+        kind=eventing.Kinds.json,
     )
+
+    assert kering.deversify(serder.ked["v"]).pvrsn == kering.Vrsn_1_0
 
     monkeypatch.setattr(wat_httping.parsing, "Parser", CapturingParser)
     monkeypatch.setattr(
