@@ -12,6 +12,12 @@ resolution, and key-state query replies.
    This is initial API reference documentation. A developer guide is planned
    for a future release.
 
+.. toctree::
+   :maxdepth: 2
+   :caption: Contents:
+
+   developer-guide
+
 .. autosummary::
    :toctree: api
    :recursive:
