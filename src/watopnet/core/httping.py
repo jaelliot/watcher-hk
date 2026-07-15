@@ -263,6 +263,8 @@ class Throttle(object):
             resp (Response): Falcon HTTP response object
         """
         ip = req.remote_addr
+        if isinstance(ip, tuple):
+            ip = ip[0]
         if not ip:
             ip = req.access_route[-1] if req.access_route else "unknown"
         now = helping.nowUTC()

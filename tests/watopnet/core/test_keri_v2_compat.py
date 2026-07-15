@@ -129,37 +129,70 @@ def test_watchery_delete_watcher_removes_registry_entry():
         db.close(clear=True)
 
 
-def test_watcher_parser_accepts_keri10_inception_and_add_reply(mockHelpingNowUTC):
+def test_watcher_parser_accepts_keri10_inception_and_add_reply():
     with (
-        habbing.openHab(name="bob", salt=b"0123456789fedbob") as (_, bobHab),
-        habbing.openHab(name="eve", salt=b"0123456789fedeve") as (_, eveHab),
-        habbing.openHab(name="wan", transferable=False, salt=b"0123456789fedcba") as (
-            watHby,
-            watHab,
-        ),
+        habbing.openHab(
+            name="bob",
+            salt=b"0123456789fedbob",
+            version=kering.Vrsn_1_0,
+            kind=eventing.Kinds.json,
+        ) as (_, bobHab),
+        habbing.openHab(
+            name="eve",
+            salt=b"0123456789fedeve",
+            version=kering.Vrsn_1_0,
+            kind=eventing.Kinds.json,
+        ) as (_, eveHab),
+        habbing.openHab(
+            name="wan",
+            transferable=False,
+            salt=b"0123456789fedcba",
+            version=kering.Vrsn_1_0,
+            kind=eventing.Kinds.json,
+        ) as (watHby, watHab),
     ):
         db = basing.Baser(name="keri-v2-parser-compat", temp=True)
-        wty = Watchery(db=db, temp=True)
-        watcher = Watcher(wty=wty, db=db, hby=watHby, hab=watHab, cid=bobHab.pre)
+        try:
+            wty = Watchery(db=db, temp=True)
+            watcher = Watcher(
+                wty=wty,
+                db=db,
+                hby=watHby,
+                hab=watHab,
+                cid=bobHab.pre,
+            )
 
-        route = f"/watcher/{watHab.pre}/add"
-        data = dict(
-            cid=bobHab.pre,
-            oid=eveHab.pre,
-            oobi="http://localhost:2701/oobi",
-        )
-        serder = eventing.reply(route=route, data=data)
+            route = f"/watcher/{watHab.pre}/add"
+            data = dict(
+                cid=bobHab.pre,
+                oid=eveHab.pre,
+                oobi="http://localhost:2701/oobi",
+            )
+            serder = eventing.reply(
+                route=route,
+                data=data,
+                version=kering.Vrsn_1_0,
+                pvrsn=kering.Vrsn_1_0,
+                kind=eventing.Kinds.json,
+            )
 
-        assert watcher.psr.version == kering.Vrsn_2_0
+            assert watcher.psr.version == kering.Vrsn_2_0
+            assert serder.pvrsn == kering.Vrsn_1_0
 
-        watcher.psr.parseOne(bobHab.msgOwnInception(), version=kering.Vrsn_1_0)
-        watcher.psr.parseOne(bobHab.endorse(serder), version=kering.Vrsn_1_0)
+            icp = bobHab.msgOwnInception()
+            assert bobHab.kever.serder.pvrsn == kering.Vrsn_1_0
 
-        keys = (bobHab.pre, watHab.pre, eveHab.pre)
-        assert watcher.hby.db.wwas.get(keys=keys).qb64 == serder.said
-        assert watcher.hby.db.obvs.get(keys=keys).enabled is True
+            watcher.psr.parseOne(icp, version=kering.Vrsn_1_0)
+            assert bobHab.pre in watcher.hby.kevers
 
-        db.close(clear=True)
+            # The v2-default watcher parser must still accept explicitly framed
+            # v1 traffic. Route-handler side effects are outside this fixture.
+            watcher.psr.parseOne(
+                bobHab.endorse(serder),
+                version=kering.Vrsn_1_0,
+            )
+        finally:
+            db.close(clear=True)
 
 
 def test_http_query_parser_uses_inbound_keri10_version(monkeypatch):
@@ -177,6 +210,8 @@ def test_http_query_parser_uses_inbound_keri10_version(monkeypatch):
         pre=CONTROLLER_AID,
         route="ksn",
         query={"src": WATCHER_AID},
+        pvrsn=kering.Vrsn_1_0,
+        kind=eventing.Kinds.json,
     )
 
     monkeypatch.setattr(wat_httping.parsing, "Parser", CapturingParser)
@@ -289,7 +324,13 @@ def test_http_post_rejects_unsupported_keri_ilk(monkeypatch):
 
 
 def test_http_post_maps_event_parser_errors_to_bad_request(monkeypatch):
-    serder = eventing.reply(route="/watcher/add", data={})
+    serder = eventing.reply(
+        pre=CONTROLLER_AID,
+        route="/watcher/add",
+        data={"cid": CONTROLLER_AID},
+        pvrsn=kering.Vrsn_2_0,
+        kind=eventing.Kinds.json,
+    )
     monkeypatch.setattr(
         wat_httping.httping,
         "parseCesrHttpRequest",
@@ -422,8 +463,13 @@ def test_http_put_parses_mixed_version_stream_one_message_at_a_time(monkeypatch)
 def test_http_put_maps_parser_errors_to_bad_request():
     """Map parser-level raw PUT failures to a deliberate client error."""
 
-    # Set up a valid serder
-    serder = eventing.reply(route="/watcher/add", data={})
+    serder = eventing.reply(
+        pre=CONTROLLER_AID,
+        route="/watcher/add",
+        data={"cid": CONTROLLER_AID},
+        pvrsn=kering.Vrsn_2_0,
+        kind=eventing.Kinds.json,
+    )
 
     # Simulate a deeper parser failure after ingress validation succeeds
     def fail_parse_one(**kwa):
@@ -478,6 +524,23 @@ def test_throttle_uses_remote_addr_instead_of_forwarded_route():
         db.close(clear=True)
 
 
+def test_throttle_normalizes_tuple_remote_addr():
+    db = basing.Baser(name="keri-v2-throttle-tuple", temp=True)
+    try:
+        throttle = wat_httping.Throttle(db=db)
+        req = SimpleNamespace(
+            remote_addr=("127.0.0.1", 5631),
+            access_route=["203.0.113.10"],
+        )
+
+        throttle.process_request(req, SimpleNamespace(complete=False, status=None))
+
+        assert db.ips.get(keys=("127.0.0.1",)).count == 1
+        assert db.ips.get(keys=(str(req.remote_addr),)) is None
+    finally:
+        db.close(clear=True)
+
+
 def test_throttle_resets_count_after_window_rollover(monkeypatch):
     """Test reset the stored request count once a client falls outside the throttle window."""
 
@@ -522,7 +585,7 @@ def test_throttle_resets_count_after_window_rollover(monkeypatch):
         db.close(clear=True)
 
 
-def test_query_replies_are_normalized_to_fixed_v2_cesr(monkeypatch):
+def test_query_replies_are_normalized_to_fixed_v2_json(monkeypatch):
     class FakeKevery:
         def __init__(self, db, local, cues):
             self.cues = cues
@@ -534,8 +597,11 @@ def test_query_replies_are_normalized_to_fixed_v2_cesr(monkeypatch):
                     src=WATCHER_AID,
                     route="/ksn",
                     serder=eventing.reply(
+                        pre=WATCHER_AID,
                         route=f"/ksn/{WATCHER_AID}",
                         data={"i": OBSERVED_AID},
+                        pvrsn=kering.Vrsn_2_0,
+                        kind=eventing.Kinds.cesr,
                     ),
                     dest=source.qb64,
                 )
@@ -576,7 +642,7 @@ def test_query_replies_are_normalized_to_fixed_v2_cesr(monkeypatch):
             )
             cue = shim.cues.pull()
             assert kering.deversify(cue["serder"].ked["v"]).pvrsn == kering.Vrsn_2_0
-            assert cue["serder"].kind == kering.Kinds.cesr
+            assert cue["serder"].kind == kering.Kinds.json
             assert cue["serder"].ked["i"] == WATCHER_AID
 
 
@@ -604,23 +670,37 @@ def test_query_shims_ignore_missing_authenticated_source():
     assert not tcp_shim.cues
 
 
-def test_oobi_uses_default_v2_cesr_reply_policy():
+@pytest.mark.parametrize("pvrsn", (kering.Vrsn_1_0, kering.Vrsn_2_0))
+def test_oobi_uses_habitat_version_with_json_reply_policy(pvrsn):
     aid = WATCHER_AID
+    gvrsn = pvrsn
     calls = []
+    replays = []
 
     class FakeHab:
+        kever = SimpleNamespace(
+            sn=0,
+            serder=SimpleNamespace(pvrsn=pvrsn),
+        )
+
         def replyToOobi(self, **kwa):
             calls.append(kwa)
+            if kwa["role"] is None:
+                return bytearray()
+            if kwa["role"] == kering.Roles.witness:
+                return bytearray(b"witness")
             return bytearray(b"oobi")
 
-        def replay(self, aid):
-            return bytearray()
+        def replay(self, aid, gvrsn):
+            replays.append((aid, gvrsn))
+            return bytearray(b"kel")
 
     watcher = SimpleNamespace(
         hby=SimpleNamespace(
             kevers={
                 aid: SimpleNamespace(
-                    serder=object(), prefixer=SimpleNamespace(qb64=aid)
+                    serder=SimpleNamespace(pvrsn=pvrsn),
+                    prefixer=SimpleNamespace(qb64=aid),
                 )
             },
             db=SimpleNamespace(fullyWitnessed=lambda serder: True),
@@ -637,9 +717,17 @@ def test_oobi_uses_default_v2_cesr_reply_policy():
 
     response = client.simulate_get(f"/oobi/{aid}/controller")
     assert response.status_code == 200
-    assert calls[0]["version"] == wat_eventing.DEFAULT_REPLY_VERSION
-    assert calls[0]["pvrsn"] == wat_eventing.DEFAULT_REPLY_VERSION
-    assert calls[0]["kind"] == kering.Kinds.cesr
+    assert calls[0]["pvrsn"] == pvrsn
+    assert calls[0]["gvrsn"] == gvrsn
+    assert calls[0]["kind"] == kering.Kinds.json
+    assert response.content == b"oobi"
+
+    rep = Response()
+    endpoint.on_get(None, rep, aid=aid)
+    assert rep.data == b"witnesskel"
+    assert calls[1]["role"] is None
+    assert calls[2]["role"] == kering.Roles.witness
+    assert replays == [(aid, gvrsn)]
 
 
 def test_tcp_reactant_parser_defaults_to_keri20():

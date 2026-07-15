@@ -97,17 +97,29 @@ def test_create_watcher_rejects_invalid_oobi_url():
 
 def test_adding_watched(mockHelpingNowUTC):
     with (
-        habbing.openHab(name="bob", salt=b"0123456789fedbob") as (_, bobHab),
-        habbing.openHab(name="eve", salt=b"0123456789fedeve") as (_, eveHab),
-        habbing.openHab(name="wan", transferable=False, salt=b"0123456789fedcba") as (
+        habbing.openHab(
+            name="bob",
+            salt=b"0123456789fedbob",
+            version=kering.Vrsn_2_0,
+            kind=eventing.Kinds.json,
+        ) as (_, bobHab),
+        habbing.openHab(
+            name="eve",
+            salt=b"0123456789fedeve",
+            version=kering.Vrsn_2_0,
+            kind=eventing.Kinds.json,
+        ) as (_, eveHab),
+        habbing.openHab(
+            name="wan",
+            transferable=False,
+            salt=b"0123456789fedcba",
+            version=kering.Vrsn_2_0,
+            kind=eventing.Kinds.json,
+        ) as (
             watHby,
             watHab,
         ),
     ):
-        assert bobHab.pre == "ENsqL5zLYNbZf0kcOlx-ioqNWlatD9rKZZM4hbEI7nza"
-        assert eveHab.pre == "ELiJTS4bBx5gZlT68OjBxFiirP0Qa2XQZ6V5cjHWQR0p"
-        assert watHab.pre == "BGbLRtLXIslZvTfYz97dS9_EzQxp8kSTAMMtW-LmlXMI"
-
         db = basing.Baser(name="bob", temp=True)
 
         wty = Watchery(db=db, temp=True)
@@ -117,17 +129,20 @@ def test_adding_watched(mockHelpingNowUTC):
         data = dict(cid=bobHab.pre, oid=eveHab.pre, oobi="http://localhost:2701/oobi")
 
         serder = eventing.reply(
+            pre=bobHab.pre,
             route=route,
             data=data,
+            pvrsn=kering.Vrsn_2_0,
+            kind=eventing.Kinds.json,
         )
         ims = bobHab.endorse(serder)
         assert bytes(ims).startswith(serder.raw)
 
         icp = bobHab.msgOwnInception()
-        watcher.psr.parseOne(icp, version=kering.Vrsn_1_0)
+        watcher.psr.parseOne(icp, version=kering.Vrsn_2_0)
         assert bobHab.pre in watcher.hby.kevers
 
-        watcher.psr.parseOne(ims, version=kering.Vrsn_1_0)
+        watcher.psr.parseOne(ims, version=kering.Vrsn_2_0)
 
         keys = (bobHab.pre, watHab.pre, eveHab.pre)
 
@@ -269,27 +284,43 @@ def test_sentinal_queries_witness_state_with_http_ksn(monkeypatch):
 
 def test_query_witness_state_parses_real_keri10_ksn_reply(monkeypatch):
     with (
-        habbing.openHab(name="wit", transferable=False, salt=b"0123456789fedwit") as (
-            _,
-            witHab,
-        ),
+        habbing.openHab(
+            name="wit",
+            transferable=False,
+            salt=b"0123456789fedwit",
+            version=kering.Vrsn_1_0,
+            kind=eventing.Kinds.json,
+        ) as (_, witHab),
         habbing.openHab(
             name="bob",
             salt=b"0123456789fedbob",
             wits=[witHab.pre],
             toad=1,
+            version=kering.Vrsn_1_0,
+            kind=eventing.Kinds.json,
         ) as (_, bobHab),
-        habbing.openHab(name="wan", transferable=False, salt=b"0123456789fedwan") as (
-            watHby,
-            watHab,
-        ),
+        habbing.openHab(
+            name="wan",
+            transferable=False,
+            salt=b"0123456789fedwan",
+            version=kering.Vrsn_1_0,
+            kind=eventing.Kinds.json,
+        ) as (watHby, watHab),
     ):
-        watHab.psr.parseOne(bobHab.msgOwnInception(), local=False, version=kering.Vrsn_1_0)
+        watHab.psr.parseOne(
+            bobHab.msgOwnInception(),
+            local=False,
+            version=kering.Vrsn_1_0,
+        )
         rserder = eventing.reply(
             route=f"/ksn/{witHab.pre}",
             data=bobHab.kever.state()._asdict(),
+            version=kering.Vrsn_1_0,
+            pvrsn=kering.Vrsn_1_0,
+            kind=eventing.Kinds.json,
         )
-        body = witHab.endorse(rserder)
+        assert rserder.pvrsn == kering.Vrsn_1_0
+        body = witHab.endorse(rserder, gvrsn=kering.Vrsn_1_0)
 
         class FakeClient:
             def __init__(self):
@@ -305,10 +336,10 @@ def test_query_witness_state_parses_real_keri10_ksn_reply(monkeypatch):
             def respond(self):
                 return self.responses.pop(0)
 
-        client_doer = object()
+        clientDoer = object()
         monkeypatch.setattr(
             "watopnet.app.watching.agenting.httpClient",
-            lambda hab, wit: (FakeClient(), client_doer),
+            lambda hab, wit: (FakeClient(), clientDoer),
         )
 
         sentinal = Sentinal(

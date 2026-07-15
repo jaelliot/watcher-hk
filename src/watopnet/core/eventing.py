@@ -17,7 +17,7 @@ DEFAULT_REPLY_VERSION = kering.Vrsn_2_0
 
 
 def _processQueryFixedV2(*, db, cues, serder, source, sigers, cigars, reply_pre):
-    """Delegate query processing to KERI and normalize KSN replies into v2 CESR messages."""
+    """Delegate query processing to KERI and normalize KSN replies into v2 JSON messages."""
 
     # Create a local deck to capture cues from the Kevery
     local_cues = decking.Deck()
@@ -33,16 +33,16 @@ def _processQueryFixedV2(*, db, cues, serder, source, sigers, cigars, reply_pre)
             cues.push(cue)
             continue
 
-        # Check that the reply is a v2 CESR message, if so push it and continue
+        # Check that the reply is already in the split-transport body format
         reply = cue["serder"]
         if (
             reply.pvrsn == DEFAULT_REPLY_VERSION
-            and reply.kind == eventing.Kinds.cesr
+            and reply.kind == eventing.Kinds.json
         ):
             cues.push(cue)
             continue
 
-        # Normalize the reply into a v2 CESR message and push it
+        # Normalize the reply into a v2 JSON message and push it
         updated = dict(cue)
         updated["serder"] = eventing.reply(
             pre=reply_pre,
@@ -51,7 +51,7 @@ def _processQueryFixedV2(*, db, cues, serder, source, sigers, cigars, reply_pre)
             stamp=reply.ked.get("dt"),
             version=DEFAULT_REPLY_VERSION,
             pvrsn=DEFAULT_REPLY_VERSION,
-            kind=eventing.Kinds.cesr,
+            kind=eventing.Kinds.json,
         )
         cues.push(updated)
 
