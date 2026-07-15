@@ -4,7 +4,7 @@ Developer Guide
 Watopnet is a `KERI <https://github.com/WebOfTrust/keri>`_ watcher service that monitors
 Autonomic Identifiers (AIDs) and verifies key-event consistency across witnesses. Watchers
 are provisioned dynamically via a management API, track observed AIDs, poll witnesses for
-key state, and answer signed key-state queries from authorized controllers.
+key state, and process KERI query messages from authorized controllers.
 
 Environment
 -----------
@@ -47,15 +47,17 @@ For development with test dependencies:
 End-to-End Walkthrough
 ----------------------
 
-This section walks through the complete flow: starting a watcher, provisioning
-it for a controller, registering a watched AID, and verifying key-state queries.
+This section walks through starting the service, provisioning a watcher for a
+controller, and checking watcher status.
 Follow these steps in order. If you get stuck, see the :ref:`troubleshooting` section.
 
 .. note::
 
-   Watchers depend on witnesses. The controller AID must already be incepted
-   with witnesses before a watcher can monitor it. Start the witness service
-   (``witopnet``) first — see the
+   Watchers depend on witnesses for key-state verification during monitoring.
+   The walkthrough below covers starting the service and provisioning — witness
+   interaction occurs after the watcher is provisioned and receiving events.
+   Start the witness service (``witopnet``) first if you plan to exercise the
+   full monitoring flow. See the
    `witness-hk developer guide <https://github.com/keri-foundation/witness-hk>`_.
 
 Step 1: Prepare the config directory
@@ -69,10 +71,10 @@ Create a config directory with the KERI config file structure:
 
    cat > /tmp/watcher-demo/keri/cf/watopnet.json <<'EOF'
    {
-     "dt": "2024-01-01T00:00:00.000000+00:00",
+     "dt": "2022-01-20T12:57:59.823350+00:00",
      "watopnet": {
-       "dt": "2024-01-01T00:00:00.000000+00:00",
-       "curls": ["http://127.0.0.1:7632/"]
+       "dt": "2022-01-20T12:57:59.823350+00:00",
+       "curls": ["http://localhost:7632/"]
      }
    }
    EOF
@@ -88,27 +90,17 @@ Step 2: Start the watcher
 
 .. code-block:: bash
 
-   watcher -H 7632 -t 7631 --config-dir /tmp/watcher-demo
+   watopnet start -H 7632 --bootport 7631 --config-dir /tmp/watcher-demo
 
-Where ``-H`` is the main watcher HTTP port and ``-t`` is the boot server port.
+Where ``-H`` is the main watcher HTTP port and ``--bootport`` is the boot server port.
 
-You should see log output confirming both servers started:
+The startup log includes a message reporting both configured ports:
 
 .. code-block:: text
 
-   Starting Watcher Operational Network
-   listening internally: http/7631, externally: http/7632
+   Starting Watcher Operational Network service internally: http/7631, externally: http/7632
 
-Step 3: Verify liveness
-~~~~~~~~~~~~~~~~~~~~~~~
-
-.. code-block:: bash
-
-   curl -i http://127.0.0.1:7631/health
-
-Expected: ``HTTP/1.1 204 No Content``
-
-Step 4: Provision the watcher for your controller
+Step 3: Provision the watcher for your controller
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
@@ -119,35 +111,12 @@ Step 4: Provision the watcher for your controller
 
 The response includes the watcher's endpoint identifier (``eid``) and OOBI URLs.
 
-Step 5: Add a watched AID
-~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Register an AID for the watcher to monitor:
-
-.. code-block:: bash
-
-   curl -X POST http://127.0.0.1:7632/watchers/<watcher-eid>/aids \
-     -H "Content-Type: application/json" \
-     -d '{"aid": "<target-aid>"}'
-
-The watcher will begin polling witnesses for key state on this AID.
-
-Step 6: Query key state
-~~~~~~~~~~~~~~~~~~~~~~~
-
-.. code-block:: bash
-
-   curl "http://127.0.0.1:7632/ksn?pre=<target-aid>"
-
-Returns a signed key-state notice with the current key state and witness
-endorsements.
-
-Step 7: Check watcher status
+Step 4: Check watcher status
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 
-   curl "http://127.0.0.1:7632/watchers/<watcher-eid>/status"
+   curl "http://127.0.0.1:7631/watchers/<watcher-eid>/status"
 
 Returns the watcher's current state including the controller AID, total
 witnesses, and responsive witness count.
@@ -158,15 +127,13 @@ Architecture
 Watopnet runs two HTTP servers side by side:
 
 - **Boot server** (default ``127.0.0.1:7631``): management API. Use this to provision
-  new watchers (``POST /watchers``), delete watchers (``DELETE /watchers/{eid}``),
-  and check liveness (``GET /health``).
+  new watchers (``POST /watchers``) and delete watchers (``DELETE /watchers/{eid}``).
 
 - **Watcher server** (default ``127.0.0.1:7632``): KERI event processing. Handles
-  event intake (``POST /``), OOBI resolution (``GET /oobi/...``), key-state
-  queries (``GET /ksn``), and KEL replay (``GET /log``).
+  event intake (``POST /``) and OOBI resolution (``GET /oobi/...``).
 
-Each provisioned watcher gets its own non-transferable KERI identifier (Hab), its own
-keystore, and its own mailbox. The :class:`~watopnet.app.watching.Watchery` class
+Each provisioned watcher gets its own non-transferable KERI identifier (Hab) and its own
+keystore. The :class:`~watopnet.app.watching.Watchery` class
 manages all running watchers and persists their records in an LMDB database via
 :class:`~watopnet.core.basing.Baser`.
 
@@ -182,21 +149,23 @@ The watcher server is configured via a KERI config file. A sample is provided at
      "dt": "2022-01-20T12:57:59.823350+00:00",
      "watopnet": {
        "dt": "2022-01-20T12:57:59.823350+00:00",
-       "curls": ["http://127.0.0.1:7632/"]
+       "curls": ["http://localhost:7632/"]
      }
    }
 
-The ``curls`` field sets the controller URL(s) advertised by the watcher. Pass the
+The first ``curls`` entry sets the watcher's advertised HTTP scheme,
+hostname, and port.  If a second entry is present, watcher-hk uses its
+port as the TCP port value. Pass the
 directory containing ``keri/cf/watopnet.json`` to ``--config-dir``.
 
 Running the Watcher
 -------------------
 
-After installation, the ``watcher`` CLI is available:
+After installation, the ``watopnet`` CLI is available:
 
 .. code-block:: bash
 
-   watcher -H 7632 -t 7631 --config-dir /path/to/scripts
+   watopnet start -H 7632 --bootport 7631 --config-dir /path/to/scripts
 
 Key flags:
 
@@ -210,9 +179,15 @@ Key flags:
    * - ``-H`` / ``--http``
      - ``7632``
      - Port the watcher server listens on
-   * - ``-t`` / ``--bootport``
+   * - ``-o`` / ``--host``
+     - ``127.0.0.1``
+     - Host IP address the watcher server listens on
+   * - ``-bp`` / ``--bootport``
      - ``7631``
      - Port the boot server listens on
+   * - ``-bh`` / ``--boothost``
+     - ``127.0.0.1``
+     - Host IP address the boot server listens on
    * - ``--config-dir`` / ``-c``
      - —
      - Directory one level above ``keri/cf/`` containing the config file
@@ -267,8 +242,8 @@ Boot server (``localhost:7631``)
      - ``/watchers/{eid}``
      - Delete a watcher by its endpoint identifier
    * - ``GET``
-     - ``/health``
-     - Liveness probe, returns ``204 No Content``
+     - ``/watchers/{eid}/status``
+     - Get watcher status: watcher/controller IDs, witness-query summaries, and stored per-AID witness results
 
 Watcher server (``localhost:7632``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -282,22 +257,13 @@ Watcher server (``localhost:7632``)
      - Description
    * - ``POST``
      - ``/``
-     - Submit a KERI event (KEL/EXN/TEL/QRY) with CESR attachments
+     - Submit a KERI event (KEL/EXN/RPY/QRY) with CESR attachments
    * - ``PUT``
      - ``/``
-     - Push raw CESR bytes into the inbound stream
-   * - ``POST``
-     - ``/watchers/{eid}/aids``
-     - Register an AID for the watcher to monitor
+     - Push CESR bytes into the inbound stream
    * - ``GET``
-     - ``/watchers/{eid}/status``
-     - Get watcher status: controller AID, witness counts, watched AIDs
-   * - ``GET``
-     - ``/ksn``
-     - Get the key state notice for a prefix
-   * - ``GET``
-     - ``/log``
-     - Replay KEL events for a prefix
+     - ``/oobi``
+     - OOBI resolution (default AID)
    * - ``GET``
      - ``/oobi/{aid}``
      - OOBI resolution endpoint
@@ -316,15 +282,15 @@ Testing
    pip install -e ".[dev]"
    pytest tests/
 
-Tests are located under ``tests/`` and cover the watcher lifecycle, OOBI
-resolution, and key-state query paths. The test suite uses temporary in-memory
+Tests under ``tests/`` include coverage for watcher provisioning, OOBI
+handling, and witness-state query processing. The test suite uses temporary in-memory
 KERI keystores so no external services are required.
 
 To run a specific test file:
 
 .. code-block:: bash
 
-   pytest tests/test_watching.py -v
+   pytest tests/watopnet/core/test_watching.py -v
 
 .. _troubleshooting:
 
@@ -336,17 +302,14 @@ Troubleshooting
     ``keri/cf/``. KERI looks for ``<config-dir>/keri/cf/watopnet.json``.
 
 **Port already in use**
-    Change ``-H`` or ``-t``. Both servers must bind to unique ports.
-    Kill any existing ``watcher`` processes first: ``pkill -f watcher``.
+    Change ``-H`` or ``--bootport``. Both servers must bind to unique ports.
+    Kill any existing ``watopnet`` processes first: ``pkill -f watopnet``.
 
-**"Unknown sender key state" on provision**
-    The controller AID must be incepted before provisioning. Run ``kli incept``
-    first — see Step 4 in the End-to-End Walkthrough above.
-
-**Watcher returns empty key state**
-    The target AID must be registered with witnesses and have at least one
-    key event before the watcher can query its state. Verify the witness is
-    running and the AID has been incepted.
+**"Unknown sender key state"**
+    This error can occur during KERI protocol exchanges (such as event submission
+    through ``POST /``) when the sender's key state is not yet known to the
+    watcher. Ensure the controller AID has been incepted (``kli incept``) and its
+    key events have propagated.
 
 **ImportError: libsodium not found**
     Install libsodium: ``brew install libsodium`` (macOS) or

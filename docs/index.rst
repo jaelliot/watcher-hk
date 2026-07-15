@@ -9,8 +9,8 @@ resolution, and key-state query replies.
 
 .. note::
 
-   This is initial API reference documentation. A developer guide is planned
-   for a future release.
+   This documentation covers the Watopnet HTTP API, developer workflow, and
+   configuration. The developer guide includes an end-to-end walkthrough.
 
 .. toctree::
    :maxdepth: 2
