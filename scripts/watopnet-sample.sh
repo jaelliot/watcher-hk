@@ -28,8 +28,8 @@
 #   ./scripts/watopnet-sample.sh
 #
 # Production usage:
-#   WATOPNET_VENV=/opt/healthkeri/watopnet/venv/bin/activate \
-#   WATOPNET_CONFIG_DIR=/opt/healthkeri/watopnet/config \
+#   WATOPNET_VENV=/opt/watopnet/venv/bin/activate \
+#   WATOPNET_CONFIG_DIR=/opt/watopnet/config \
 #   ./scripts/watopnet-sample.sh
 
 # Resolve the directory this script lives in, whether or not env.sh has been sourced.
