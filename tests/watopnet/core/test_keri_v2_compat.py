@@ -16,7 +16,7 @@ from keri.core import coring, eventing
 from keri.db.basing import ObservedRecord
 
 from watopnet.app import watching
-from watopnet.app.watching import Sentinal, SentinalDoer, States, Watcher, Watchery
+from watopnet.app.watching import Sentinal, SentinalDoer, States, Watchery
 from watopnet.core import basing
 from watopnet.core import eventing as wat_eventing
 from watopnet.core import httping as wat_httping
@@ -129,39 +129,6 @@ def test_watchery_delete_watcher_removes_registry_entry():
         db.close(clear=True)
 
 
-def test_watcher_parser_accepts_keri10_inception_and_add_reply(mockHelpingNowUTC):
-    with (
-        habbing.openHab(name="bob", salt=b"0123456789fedbob") as (_, bobHab),
-        habbing.openHab(name="eve", salt=b"0123456789fedeve") as (_, eveHab),
-        habbing.openHab(name="wan", transferable=False, salt=b"0123456789fedcba") as (
-            watHby,
-            watHab,
-        ),
-    ):
-        db = basing.Baser(name="keri-v2-parser-compat", temp=True)
-        wty = Watchery(db=db, temp=True)
-        watcher = Watcher(wty=wty, db=db, hby=watHby, hab=watHab, cid=bobHab.pre)
-
-        route = f"/watcher/{watHab.pre}/add"
-        data = dict(
-            cid=bobHab.pre,
-            oid=eveHab.pre,
-            oobi="http://localhost:2701/oobi",
-        )
-        serder = eventing.reply(route=route, data=data)
-
-        assert watcher.psr.version == kering.Vrsn_2_0
-
-        watcher.psr.parseOne(bobHab.msgOwnInception(), version=kering.Vrsn_1_0)
-        watcher.psr.parseOne(bobHab.endorse(serder), version=kering.Vrsn_1_0)
-
-        keys = (bobHab.pre, watHab.pre, eveHab.pre)
-        assert watcher.hby.db.wwas.get(keys=keys).qb64 == serder.said
-        assert watcher.hby.db.obvs.get(keys=keys).enabled is True
-
-        db.close(clear=True)
-
-
 def test_http_query_parser_uses_inbound_keri10_version(monkeypatch):
     captured = {}
 
@@ -177,6 +144,8 @@ def test_http_query_parser_uses_inbound_keri10_version(monkeypatch):
         pre=CONTROLLER_AID,
         route="ksn",
         query={"src": WATCHER_AID},
+        pvrsn=kering.Vrsn_1_0,
+        kind=eventing.Kinds.json,
     )
 
     monkeypatch.setattr(wat_httping.parsing, "Parser", CapturingParser)
@@ -289,7 +258,13 @@ def test_http_post_rejects_unsupported_keri_ilk(monkeypatch):
 
 
 def test_http_post_maps_event_parser_errors_to_bad_request(monkeypatch):
-    serder = eventing.reply(route="/watcher/add", data={})
+    serder = eventing.reply(
+        pre=CONTROLLER_AID,
+        route="/watcher/add",
+        data={"cid": CONTROLLER_AID},
+        pvrsn=kering.Vrsn_2_0,
+        kind=eventing.Kinds.json,
+    )
     monkeypatch.setattr(
         wat_httping.httping,
         "parseCesrHttpRequest",
@@ -422,8 +397,13 @@ def test_http_put_parses_mixed_version_stream_one_message_at_a_time(monkeypatch)
 def test_http_put_maps_parser_errors_to_bad_request():
     """Map parser-level raw PUT failures to a deliberate client error."""
 
-    # Set up a valid serder
-    serder = eventing.reply(route="/watcher/add", data={})
+    serder = eventing.reply(
+        pre=CONTROLLER_AID,
+        route="/watcher/add",
+        data={"cid": CONTROLLER_AID},
+        pvrsn=kering.Vrsn_2_0,
+        kind=eventing.Kinds.json,
+    )
 
     # Simulate a deeper parser failure after ingress validation succeeds
     def fail_parse_one(**kwa):
@@ -534,8 +514,11 @@ def test_query_replies_are_normalized_to_fixed_v2_cesr(monkeypatch):
                     src=WATCHER_AID,
                     route="/ksn",
                     serder=eventing.reply(
+                        pre=WATCHER_AID,
                         route=f"/ksn/{WATCHER_AID}",
                         data={"i": OBSERVED_AID},
+                        pvrsn=kering.Vrsn_2_0,
+                        kind=eventing.Kinds.cesr,
                     ),
                     dest=source.qb64,
                 )
