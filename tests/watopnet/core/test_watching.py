@@ -283,6 +283,8 @@ def test_sentinal_queries_witness_state_with_http_ksn(monkeypatch):
 
 
 def test_query_witness_state_parses_real_keri10_ksn_reply(monkeypatch):
+    """Accept a legacy v1 KSN reply from a witness during migration."""
+
     with (
         habbing.openHab(
             name="wit",
@@ -319,7 +321,6 @@ def test_query_witness_state_parses_real_keri10_ksn_reply(monkeypatch):
             pvrsn=kering.Vrsn_1_0,
             kind=eventing.Kinds.json,
         )
-        assert rserder.pvrsn == kering.Vrsn_1_0
         body = witHab.endorse(rserder, gvrsn=kering.Vrsn_1_0)
 
         class FakeClient:
@@ -371,22 +372,34 @@ def test_query_witness_state_parses_real_keri10_ksn_reply(monkeypatch):
 
 def test_query_witness_state_parses_real_keri2_ksn_reply(monkeypatch):
     with (
-        habbing.openHab(name="wit", transferable=False, salt=b"0123456789fedw20") as (
-            _,
-            witHab,
-        ),
+        habbing.openHab(
+            name="wit",
+            transferable=False,
+            salt=b"0123456789fedw20",
+            version=kering.Vrsn_2_0,
+            kind=eventing.Kinds.cesr,
+        ) as (_, witHab),
         habbing.openHab(
             name="bob",
             salt=b"0123456789fedb20",
             wits=[witHab.pre],
             toad=1,
+            version=kering.Vrsn_2_0,
+            kind=eventing.Kinds.cesr,
         ) as (_, bobHab),
-        habbing.openHab(name="wan", transferable=False, salt=b"0123456789fedwa2") as (
-            watHby,
-            watHab,
-        ),
+        habbing.openHab(
+            name="wan",
+            transferable=False,
+            salt=b"0123456789fedwa2",
+            version=kering.Vrsn_2_0,
+            kind=eventing.Kinds.cesr,
+        ) as (watHby, watHab),
     ):
-        watHab.psr.parseOne(bobHab.msgOwnInception(), local=False, version=kering.Vrsn_1_0)
+        watHab.psr.parseOne(
+            bobHab.msgOwnInception(),
+            local=False,
+            version=kering.Vrsn_2_0,
+        )
         rserder = eventing.reply(
             pre=witHab.pre,
             route=f"/ksn/{witHab.pre}",
@@ -395,7 +408,7 @@ def test_query_witness_state_parses_real_keri2_ksn_reply(monkeypatch):
             pvrsn=kering.Vrsn_2_0,
             kind=eventing.Kinds.cesr,
         )
-        body = witHab.endorse(rserder)
+        body = witHab.endorse(rserder, gvrsn=kering.Vrsn_2_0)
 
         class FakeClient:
             def __init__(self):

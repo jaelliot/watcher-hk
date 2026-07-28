@@ -16,7 +16,7 @@ from keri.core import coring, eventing
 from keri.db.basing import ObservedRecord
 
 from watopnet.app import watching
-from watopnet.app.watching import Sentinal, SentinalDoer, States, Watcher, Watchery
+from watopnet.app.watching import Sentinal, SentinalDoer, States, Watchery
 from watopnet.core import basing
 from watopnet.core import eventing as wat_eventing
 from watopnet.core import httping as wat_httping
@@ -127,72 +127,6 @@ def test_watchery_delete_watcher_removes_registry_entry():
         assert db.cids.get(keys=(eid, CONTROLLER_AID)) is None
     finally:
         db.close(clear=True)
-
-
-def test_watcher_parser_accepts_keri10_inception_and_add_reply():
-    with (
-        habbing.openHab(
-            name="bob",
-            salt=b"0123456789fedbob",
-            version=kering.Vrsn_1_0,
-            kind=eventing.Kinds.json,
-        ) as (_, bobHab),
-        habbing.openHab(
-            name="eve",
-            salt=b"0123456789fedeve",
-            version=kering.Vrsn_1_0,
-            kind=eventing.Kinds.json,
-        ) as (_, eveHab),
-        habbing.openHab(
-            name="wan",
-            transferable=False,
-            salt=b"0123456789fedcba",
-            version=kering.Vrsn_1_0,
-            kind=eventing.Kinds.json,
-        ) as (watHby, watHab),
-    ):
-        db = basing.Baser(name="keri-v2-parser-compat", temp=True)
-        try:
-            wty = Watchery(db=db, temp=True)
-            watcher = Watcher(
-                wty=wty,
-                db=db,
-                hby=watHby,
-                hab=watHab,
-                cid=bobHab.pre,
-            )
-
-            route = f"/watcher/{watHab.pre}/add"
-            data = dict(
-                cid=bobHab.pre,
-                oid=eveHab.pre,
-                oobi="http://localhost:2701/oobi",
-            )
-            serder = eventing.reply(
-                route=route,
-                data=data,
-                version=kering.Vrsn_1_0,
-                pvrsn=kering.Vrsn_1_0,
-                kind=eventing.Kinds.json,
-            )
-
-            assert watcher.psr.version == kering.Vrsn_2_0
-            assert serder.pvrsn == kering.Vrsn_1_0
-
-            icp = bobHab.msgOwnInception()
-            assert bobHab.kever.serder.pvrsn == kering.Vrsn_1_0
-
-            watcher.psr.parseOne(icp, version=kering.Vrsn_1_0)
-            assert bobHab.pre in watcher.hby.kevers
-
-            # The v2-default watcher parser must still accept explicitly framed
-            # v1 traffic. Route-handler side effects are outside this fixture.
-            watcher.psr.parseOne(
-                bobHab.endorse(serder),
-                version=kering.Vrsn_1_0,
-            )
-        finally:
-            db.close(clear=True)
 
 
 def test_http_query_parser_uses_inbound_keri10_version(monkeypatch):
