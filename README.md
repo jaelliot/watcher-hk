@@ -153,8 +153,8 @@ source scripts/env.sh
 Production example:
 
 ```bash
-WATOPNET_VENV=/opt/healthkeri/watopnet/venv/bin/activate \
-WATOPNET_CONFIG_DIR=/opt/healthkeri/watopnet/config \
+WATOPNET_VENV=/opt/watopnet/venv/bin/activate \
+WATOPNET_CONFIG_DIR=/opt/watopnet/config \
 ./scripts/watopnet-sample.sh
 ```
 
