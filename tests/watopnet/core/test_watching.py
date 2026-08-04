@@ -13,6 +13,7 @@ from unittest.mock import MagicMock
 import falcon
 import pytest
 from falcon import testing
+from hio.base import doing
 from keri import kering
 from keri.app import habbing
 from keri.app.httping import CESR_DESTINATION_HEADER
@@ -93,6 +94,32 @@ def test_create_watcher_rejects_invalid_oobi_url():
 
     # Provisioning must stop before any watcher is created
     wty.createWatcher.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("escrowTock", "expectedCount"),
+    ((None, 2), ("1.0", 1)),
+)
+def test_escrow_doer_processes_escrows_at_configured_cadence(
+    monkeypatch, escrowTock, expectedCount
+):
+    monkeypatch.delenv("WATOPNET_ESCROW_TOCK", raising=False)
+    if escrowTock is not None:
+        monkeypatch.setenv("WATOPNET_ESCROW_TOCK", escrowTock)
+
+    kvy = MagicMock()
+    rvy = MagicMock()
+    tvy = MagicMock()
+    exc = MagicMock()
+    doer = watching.EscrowDoer(kvy=kvy, rvy=rvy, tvy=tvy, exc=exc)
+
+    doist = doing.Doist(tock=0.03125, limit=1.0, doers=[doer])
+    doist.do()
+
+    assert kvy.processEscrows.call_count == expectedCount
+    assert rvy.processEscrowReply.call_count == expectedCount
+    assert tvy.processEscrows.call_count == expectedCount
+    assert exc.processEscrow.call_count == expectedCount
 
 
 def test_adding_watched(mockHelpingNowUTC):
