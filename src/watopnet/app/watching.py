@@ -363,6 +363,7 @@ class Watchery(doing.DoDoer):
                 role=kering.Roles.controller,
                 stamp=dt,
                 version=httping.DEFAULT_PROTOCOL_VERSION,
+                kind=eventing.Kinds.json,
             )
         )
         msgs.extend(
@@ -371,6 +372,7 @@ class Watchery(doing.DoDoer):
                 scheme=self.scheme,
                 stamp=dt,
                 version=httping.DEFAULT_PROTOCOL_VERSION,
+                kind=eventing.Kinds.json,
             )
         )
         hab.psr.parse(ims=msgs)
@@ -741,7 +743,7 @@ class CueDoer(doing.Doer):
                         data=asdict(ksr),
                         version=httping.DEFAULT_PROTOCOL_VERSION,
                         pvrsn=httping.DEFAULT_PROTOCOL_VERSION,
-                        kind=eventing.Kinds.cesr,
+                        kind=eventing.Kinds.json,
                     )
                     rep = dict(kin="reply", src=self.hab.pre, dest=self.aid, serder=rpy)
                     if self.responses is not None:
@@ -987,7 +989,13 @@ class Sentinal(doing.DoDoer):
             fn = self.hby.kevers[self.oid].sn + 1 if self.oid in self.hby.kevers else 0
 
             qry = querying.SeqNoQuerier(
-                self.hby, self.hab, pre=self.oid, fn=fn, sn=state.sn
+                self.hby,
+                self.hab,
+                pre=self.oid,
+                fn=fn,
+                sn=state.sn,
+                version=httping.DEFAULT_PROTOCOL_VERSION,
+                kind=eventing.Kinds.json,
             )
             self.extend([qry])
 

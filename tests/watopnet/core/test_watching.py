@@ -309,7 +309,11 @@ def test_query_witness_state_parses_real_keri10_ksn_reply(monkeypatch):
             kind=eventing.Kinds.json,
         ) as (watHby, watHab),
     ):
-        watHab.psr.parseOne(bobHab.msgOwnInception(), local=False, version=kering.Vrsn_1_0)
+        watHab.psr.parseOne(
+            bobHab.msgOwnInception(),
+            local=False,
+            version=kering.Vrsn_1_0,
+        )
         rserder = eventing.reply(
             route=f"/ksn/{witHab.pre}",
             data=bobHab.kever.state()._asdict(),
@@ -333,10 +337,10 @@ def test_query_witness_state_parses_real_keri10_ksn_reply(monkeypatch):
             def respond(self):
                 return self.responses.pop(0)
 
-        client_doer = object()
+        clientDoer = object()
         monkeypatch.setattr(
             "watopnet.app.watching.agenting.httpClient",
-            lambda hab, wit: (FakeClient(), client_doer),
+            lambda hab, wit: (FakeClient(), clientDoer),
         )
 
         sentinal = Sentinal(
