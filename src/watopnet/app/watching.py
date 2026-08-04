@@ -652,7 +652,8 @@ class MessageDoer(doing.Doer):
         logger.info("Watcher message processing loop ready")
 
         done = yield from self.parser.parsator(
-            local=True
+            local=True,
+            version=httping.DEFAULT_PROTOCOL_VERSION,
         )  # process messages continuously
         return done  # should never get here except on forced close
 
