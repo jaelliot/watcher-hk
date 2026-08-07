@@ -658,7 +658,7 @@ class MessageDoer(doing.Doer):
 
 
 class EscrowDoer(doing.Doer):
-    """Doer that drains pending escrows for all KERI message processors on each tick."""
+    """Doer that periodically drains pending escrows for all KERI message processors."""
 
     def __init__(self, kvy, rvy, tvy, exc=None):
         """
@@ -673,7 +673,8 @@ class EscrowDoer(doing.Doer):
         self.tvy = tvy
         self.exc = exc
 
-        super(EscrowDoer, self).__init__()
+        tock = float(os.getenv("WATOPNET_ESCROW_TOCK", "0.5"))
+        super(EscrowDoer, self).__init__(tock=tock)
 
     def recur(self, tyme=None):
         """Process all pending escrows for kvy, rvy, tvy, and exc."""
