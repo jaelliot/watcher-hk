@@ -100,7 +100,7 @@ def test_watchery_temp_true_preserved_and_create_watcher_uses_temp_habery():
 
         assert watcher.hby.temp is True
         assert watcher.hab.pre in wty.wats
-        assert watcher.hab.kever.serder.kind == kering.Kinds.cesr
+        assert watcher.hab.kever.serder.kind == kering.Kinds.json
         assert db.wats.get(keys=(watcher.hab.pre,)).cid == CONTROLLER_AID
     finally:
         for watcher in list(wty.wats.values()):

@@ -153,7 +153,7 @@ def test_adding_watched(mockHelpingNowUTC):
         assert observed.enabled is True
 
 
-def test_sentinal_queries_witness_state_with_http_ksn(monkeypatch):
+def test_sentinal_queries_witness_state_and_schedules_ahead_kel_recovery(monkeypatch):
     class FakeStore:
         def __init__(self):
             self.values = {}
@@ -188,7 +188,18 @@ def test_sentinal_queries_witness_state_with_http_ksn(monkeypatch):
 
         @staticmethod
         def state():
-            return "local-state"
+            return SimpleNamespace(f="0")
+
+    def parse_one(**kwa):
+        call = kwa.copy()
+        call["ims"] = bytearray(kwa["ims"])
+        parsed.append(call)
+        kwa["ims"].clear()
+        knas.put(
+            ("OBSERVED_AID", "WIT_1"),
+            SimpleNamespace(qb64="SAID_1"),
+        )
+        ksns.put(("SAID_1",), "witness-state")
 
     class FakeHab:
         pre = "WATCHER_AID"
@@ -196,16 +207,7 @@ def test_sentinal_queries_witness_state_with_http_ksn(monkeypatch):
 
         def __init__(self):
             self.db = db
-            self.psr = SimpleNamespace(
-                parseOne=lambda **kwa: (
-                    parsed.append(kwa),
-                    knas.put(
-                        ("OBSERVED_AID", "WIT_1"),
-                        SimpleNamespace(qb64="SAID_1"),
-                    ),
-                    ksns.put(("SAID_1",), "witness-state"),
-                )
-            )
+            self.psr = SimpleNamespace(parseOne=parse_one)
 
     class FakeClient:
         def __init__(self):
@@ -236,8 +238,8 @@ def test_sentinal_queries_witness_state_with_http_ksn(monkeypatch):
         staticmethod(
             lambda wit, preksn, witksn: SimpleNamespace(
                 wit=wit,
-                state=States.even,
-                sn=0,
+                state=States.ahead,
+                sn=2,
                 dig="DIG_1",
             )
         ),
@@ -251,15 +253,17 @@ def test_sentinal_queries_witness_state_with_http_ksn(monkeypatch):
         oobi="http://watcher.example/oobi",
         db=SimpleNamespace(witq=witq),
     )
-    monkeypatch.setattr(sentinal, "extend", lambda doers: None)
-    monkeypatch.setattr(sentinal, "remove", lambda doers: None)
+    extended = []
+    removed = []
+    monkeypatch.setattr(sentinal, "extend", lambda doers: extended.extend(doers))
+    monkeypatch.setattr(sentinal, "remove", lambda doers: removed.extend(doers))
 
     do = sentinal.watch(lambda: 0.0, tock=0.0)
     assert next(do) == 0.0
     with pytest.raises(StopIteration) as stop:
         next(do)
 
-    assert stop.value.value is True
+    assert stop.value.value is None
     assert requests == [
         (
             "GET",
@@ -274,12 +278,29 @@ def test_sentinal_queries_witness_state_with_http_ksn(monkeypatch):
             "version": kering.Vrsn_1_0,
         }
     ]
+    assert removed == [client_doer]
+    assert extended[0] is client_doer
+
+    recovery = extended[1]
+    assert isinstance(recovery, watching.querying.SeqNoQuerier)
+    assert recovery.pre == "OBSERVED_AID"
+    assert recovery.fn == 1
+    assert recovery.sn == 2
+
+    query = recovery.witq.msgs[0]
+    assert query["wits"] == ["WIT_1"]
+    assert query["q"] == {"s": "2", "fn": "1"}
+    assert query["kwa"] == {
+        "version": kering.Vrsn_2_0,
+        "gvrsn": kering.Vrsn_2_0,
+        "kind": eventing.Kinds.json,
+    }
     assert len(witq.calls) == 1
-    keys, query = witq.calls[0]
+    keys, witness_query = witq.calls[0]
     assert keys == ("WATCHER_AID", "OBSERVED_AID", "WIT_1")
-    assert query.response_received is True
-    assert query.state == States.even
-    assert query.keystate == "witness-state"
+    assert witness_query.response_received is True
+    assert witness_query.state == States.ahead
+    assert witness_query.keystate == "witness-state"
 
 
 def test_query_witness_state_parses_real_keri10_ksn_reply(monkeypatch):
