@@ -352,7 +352,7 @@ class Watchery(doing.DoDoer):
             name=name,
             transferable=False,
             version=httping.DEFAULT_PROTOCOL_VERSION,
-            kind=eventing.Kinds.cesr,
+            kind=eventing.Kinds.json,
         )
         dt = helping.nowIso8601()
 
@@ -652,7 +652,8 @@ class MessageDoer(doing.Doer):
         logger.info("Watcher message processing loop ready")
 
         done = yield from self.parser.parsator(
-            local=True
+            local=True,
+            version=httping.DEFAULT_PROTOCOL_VERSION,
         )  # process messages continuously
         return done  # should never get here except on forced close
 
@@ -806,10 +807,10 @@ class CueDoer(doing.Doer):
 class Sentinal(doing.DoDoer):
     """One-shot DoDoer that queries each of an observed AID's witnesses for key state.
 
-    For each witness, issues a KSN query via ``Receiptor.ksn``, then compares the
-    returned state against the local KEL using ``diffState``.  Detects even,
-    behind, ahead, and duplicitous conditions and logs the results.  Extends
-    itself with a ``SeqNoQuerier`` when witnesses are ahead of the local KEL.
+    For each witness, fetches a KSN over HTTP, then compares the returned state
+    against the local KEL using ``diffState``.  Detects even, behind, ahead, and
+    duplicitous conditions and starts a ``SeqNoQuerier`` against an agreeing
+    ahead witness when the local KEL needs recovery.
 
     Persists per-witness query results to ``Baser.witq`` for later retrieval by
     ``WatcherStatusEnd``.
@@ -987,7 +988,7 @@ class Sentinal(doing.DoDoer):
                 )
 
             state = random.choice(ahds)
-            fn = self.hby.kevers[self.oid].sn + 1 if self.oid in self.hby.kevers else 0
+            fn = int(kever.state().f, 16) + 1
 
             qry = querying.SeqNoQuerier(
                 self.hby,
@@ -995,7 +996,9 @@ class Sentinal(doing.DoDoer):
                 pre=self.oid,
                 fn=fn,
                 sn=state.sn,
+                wits=[state.wit],
                 version=httping.DEFAULT_PROTOCOL_VERSION,
+                gvrsn=httping.DEFAULT_PROTOCOL_VERSION,
                 kind=eventing.Kinds.json,
             )
             self.extend([qry])
