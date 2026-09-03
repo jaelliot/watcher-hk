@@ -269,7 +269,12 @@ class HttpEnd:
                 ) from ex
 
             try:
-                watcher.psr.parseOne(ims=ims, local=True, version=serder.pvrsn)
+                watcher.psr.parseOne(
+                    ims=ims,
+                    local=True,
+                    version=serder.pvrsn,
+                    piped=True,
+                )
             except kering.KeriError as ex:
                 raise falcon.HTTPBadRequest(
                     description=f"invalid KERI stream: {ex}"
