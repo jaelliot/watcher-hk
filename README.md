@@ -18,7 +18,8 @@ The `scripts/verifier.sh` script in this repo assumes `witopnet` is already runn
 
 ## Requirements
 
-- Python >= 3.12.6
+- Python 3.14
+- [uv](https://docs.astral.sh/uv/getting-started/installation/) for development
 - `libsodium` (required by the `keri` package)
 
 ### Installing libsodium
@@ -26,6 +27,7 @@ The `scripts/verifier.sh` script in this repo assumes `witopnet` is already runn
 **macOS:**
 ```bash
 brew install libsodium
+export DYLD_LIBRARY_PATH="$(brew --prefix libsodium)/lib:${DYLD_LIBRARY_PATH:-}"
 ```
 
 **Ubuntu/Debian:**
@@ -46,8 +48,12 @@ pip install watopnet
 ```bash
 git clone https://github.com/keri-foundation/watcher-hk.git
 cd watcher-hk
-pip install -e ".[dev]"
+uv sync --locked --extra dev
+source .venv/bin/activate
 ```
+
+To update dependencies, run `uv lock --upgrade-package <package>`, review the
+`uv.lock` diff, and rerun the tests. Commit lockfile changes with the update.
 
 ## Configuration
 
@@ -178,7 +184,7 @@ Steps performed:
 Builds and publishes the package to PyPI. Requires `build` and `twine`:
 
 ```bash
-pip install build twine
+uv pip install build twine
 
 ./scripts/package.sh          # publish to PyPI
 ./scripts/package.sh --test   # publish to TestPyPI
@@ -186,11 +192,10 @@ pip install build twine
 
 ## Testing
 
-Install the package in editable mode with dev dependencies, then run pytest:
+Run tests with the locked development dependencies:
 
 ```bash
-pip install -e ".[dev]"
-pytest tests/
+uv run --locked --extra dev pytest tests/
 ```
 
 Tests use temporary in-memory KERI keystores so no external services are required.
@@ -198,7 +203,7 @@ Tests use temporary in-memory KERI keystores so no external services are require
 To run a specific test file:
 
 ```bash
-pytest tests/watopnet/core/test_watching.py -v
+uv run --locked --extra dev pytest tests/watopnet/core/test_watching.py -v
 ```
 
 ## Project structure

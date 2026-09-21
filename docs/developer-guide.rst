@@ -19,6 +19,7 @@ Watopnet also requires ``libsodium``, which is a dependency of the ``keri`` pack
 .. code-block:: bash
 
    brew install libsodium
+   export DYLD_LIBRARY_PATH="$(brew --prefix libsodium)/lib:${DYLD_LIBRARY_PATH:-}"
 
 **Ubuntu/Debian:**
 
@@ -29,20 +30,13 @@ Watopnet also requires ``libsodium``, which is a dependency of the ``keri`` pack
 Setup
 -----
 
-From the repository root:
+Install `uv <https://docs.astral.sh/uv/getting-started/installation/>`_, then run
+from the repository root:
 
 .. code-block:: bash
 
-   python3.14 -m venv .venv
+   uv sync --locked --extra dev
    source .venv/bin/activate
-   python -m pip install --upgrade pip
-   python -m pip install -e .
-
-For development with test dependencies:
-
-.. code-block:: bash
-
-   python -m pip install -e ".[dev]"
 
 End-to-End Walkthrough
 ----------------------
@@ -279,8 +273,7 @@ Testing
 
 .. code-block:: bash
 
-   pip install -e ".[dev]"
-   pytest tests/
+   uv run --locked --extra dev pytest tests/
 
 Tests under ``tests/`` include coverage for watcher provisioning, OOBI
 handling, and witness-state query processing. The test suite uses temporary in-memory
@@ -290,7 +283,7 @@ To run a specific test file:
 
 .. code-block:: bash
 
-   pytest tests/watopnet/core/test_watching.py -v
+   uv run --locked --extra dev pytest tests/watopnet/core/test_watching.py -v
 
 .. _troubleshooting:
 
@@ -316,7 +309,7 @@ Troubleshooting
     ``sudo apt-get install libsodium-dev`` (Ubuntu/Debian).
 
 **ModuleNotFoundError: No module named 'watopnet'**
-    Install the package in development mode: ``pip install -e .`` from the
+    Install the package in development mode: ``uv sync --locked --extra dev`` from the
     repository root.
 
 Building the Docs
@@ -326,8 +319,7 @@ From the repository root:
 
 .. code-block:: bash
 
-   pip install -e .
-   pip install sphinx sphinx-rtd-theme
+   uv pip install -r docs/requirements.txt
    cd docs
    sphinx-build -b dirhtml . _build/html
 

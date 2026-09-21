@@ -47,6 +47,8 @@ watopnet = "watopnet.app.cli.watcher:main"
 [project.optional-dependencies]
 dev = [
     "pytest",
+    "pytest-cov",
+    "flake8",
     "black",
     "ruff",
 ]
