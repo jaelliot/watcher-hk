@@ -18,7 +18,7 @@ from keri.help import helping
 from keri.kering import Ilks
 
 from watopnet.core import basing
-from watopnet.core.eventing import QueryKeveryShim
+from watopnet.core.eventing import QueryKevery
 
 DEFAULT_PROTOCOL_VERSION = kering.Vrsn_2_0
 
@@ -29,7 +29,7 @@ class HttpEnd:
     Handles POST (single event) and PUT (raw CESR stream) on ``/``.  Incoming
     events are routed to the watcher identified by the ``CESR-Destination`` header.
     KEL, EXN, and RPY messages are parsed and stored; QRY messages are answered
-    inline via ``QueryKeveryShim``.
+    inline via ``QueryKevery``.
     """
 
     def __init__(self, wty):
@@ -137,7 +137,7 @@ class HttpEnd:
             rep.status = falcon.HTTP_UNPROCESSABLE_ENTITY
 
         elif ilk in (Ilks.qry,):
-            kvy = QueryKeveryShim(watcher=watcher)
+            kvy = QueryKevery(watcher=watcher)
             try:
                 parsing.Parser(kvy=kvy, version=pvrsn).parseOne(ims=msg, local=False)
             except kering.KeriError as ex:
