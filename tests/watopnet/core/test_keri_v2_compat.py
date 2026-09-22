@@ -428,17 +428,18 @@ def test_http_put_maps_parser_errors_to_bad_request():
 
 
 def test_throttle_uses_remote_addr_instead_of_forwarded_route():
-    """Test that rate-limit is done by the connected peer address instead of forwarded client hints."""
+    """Rate-limit an untrusted direct peer by its socket address, not by forwarded client hints."""
     
     # Set up a fake DB
     db = basing.Baser(name="keri-v2-throttle-compat", temp=True)
     try:
         throttle = wat_httping.Throttle(db=db)
 
-        # Present conflicting values so the test can distinguish trusted from untrusted sources
+        # An untrusted direct peer presents conflicting forwarding hints so the test
+        # can prove the socket peer wins over a spoofable forwarded address
         req = SimpleNamespace(
-            remote_addr="127.0.0.1",
-            access_route=["203.0.113.10", "127.0.0.1"],
+            remote_addr="198.51.100.7",
+            access_route=["203.0.113.10", "198.51.100.7"],
         )
         rep = SimpleNamespace(complete=False, status=None)
 
@@ -446,8 +447,8 @@ def test_throttle_uses_remote_addr_instead_of_forwarded_route():
         throttle.process_request(req, rep)
         throttle.process_request(req, rep)
 
-        # The trusted peer address should be the only bucket that increments
-        assert db.ips.get(keys=("127.0.0.1",)).count == 2
+        # The connected socket peer should be the only bucket that increments
+        assert db.ips.get(keys=("198.51.100.7",)).count == 2
 
         # A spoofable forwarded address must not create its own throttle bucket
         assert db.ips.get(keys=("203.0.113.10",)) is None
@@ -459,17 +460,18 @@ def test_throttle_uses_remote_addr_instead_of_forwarded_route():
 
 
 def test_throttle_normalizes_tuple_remote_addr():
+    """An untrusted direct peer with a tuple ``remote_addr`` keys on its host."""
     db = basing.Baser(name="keri-v2-throttle-tuple", temp=True)
     try:
         throttle = wat_httping.Throttle(db=db)
         req = SimpleNamespace(
-            remote_addr=("127.0.0.1", 5631),
+            remote_addr=("198.51.100.7", 5631),
             access_route=["203.0.113.10"],
         )
 
         throttle.process_request(req, SimpleNamespace(complete=False, status=None))
 
-        assert db.ips.get(keys=("127.0.0.1",)).count == 1
+        assert db.ips.get(keys=("198.51.100.7",)).count == 1
         assert db.ips.get(keys=(str(req.remote_addr),)) is None
     finally:
         db.close(clear=True)

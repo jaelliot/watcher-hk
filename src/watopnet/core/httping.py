@@ -47,14 +47,18 @@ def _client_ip(req):
     Falcon's ``access_route`` is assembled from forwarding headers and is
     therefore consulted only when the actual socket peer is the local reverse
     proxy. Falcon orders the original client first in that route.
+
+    Forwarding data Falcon cannot parse, such as a non-numeric port in
+    ``Forwarded: for="203.0.113.10:bad"``, raises ``ValueError`` while the route
+    is assembled. Such a request falls back to its actual socket peer.
     """
     peer = _valid_ip(req.remote_addr)
-    if peer not in _TRUSTED_PROXY_IPS or not isinstance(req, falcon.Request):
+    if peer not in _TRUSTED_PROXY_IPS:
         return peer or "unknown"
 
     try:
         route = req.access_route
-    except (AttributeError, TypeError):
+    except (AttributeError, TypeError, ValueError):
         return peer
 
     if route:

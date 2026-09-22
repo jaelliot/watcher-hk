@@ -90,6 +90,21 @@ def test_throttle_process_request_ignores_direct_client_forwarding_data(headers)
     assert req.access_route[0] == "198.51.100.99"
     assert wat_httping._client_ip(req) == "203.0.113.10"
 
+    db = basing.Baser(name="keri-v2-throttle-direct-client", temp=True)
+    try:
+        throttle = wat_httping.Throttle(db=db)
+        direct = testing.create_req(remote_addr="203.0.113.10", headers=headers)
+        resp = SimpleNamespace(complete=False, status=None)
+
+        throttle.process_request(direct, resp)
+
+        assert db.ips.get(keys=("198.51.100.99",)) is None
+        reqs = db.ips.get(keys=("203.0.113.10",))
+        assert reqs is not None
+        assert reqs.count == 1
+    finally:
+        db.close(clear=True)
+
 
 def test_throttle_process_request_uses_direct_ipv6_peer():
     """A direct IPv6 socket peer is used without forwarding data."""
@@ -129,9 +144,61 @@ def test_throttle_process_request_uses_first_falcon_route_hop_for_proxy():
     assert wat_httping._client_ip(req) == "203.0.113.10"
 
 
-@pytest.mark.parametrize("route", ([], ["not-an-ip"], ["", "127.0.0.1"]))
-def test_throttle_process_request_falls_back_safely_for_invalid_proxy_route(route):
-    """Malformed or absent forwarding data keeps the trusted peer as the key."""
-    assert wat_httping._client_ip(
-        SimpleNamespace(remote_addr="127.0.0.1", access_route=route)
-    ) == "127.0.0.1"
+@pytest.mark.parametrize(
+    "headers",
+    [{}, {"X-Forwarded-For": "not-an-ip"}, {"X-Forwarded-For": ""}],
+    ids=("no-forwarding-data", "unparseable-client", "blank-client"),
+)
+def test_throttle_process_request_falls_back_safely_for_invalid_proxy_route(headers):
+    """Malformed or absent forwarding data keeps the trusted peer as the key.
+
+    These cases use real Falcon requests. They previously used a
+    ``SimpleNamespace``, which satisfied the now-removed request-type guard in
+    ``_client_ip`` and returned before ``access_route`` was ever read, so the
+    forwarding-data fallback was never actually exercised.
+    """
+    req = testing.create_req(remote_addr="127.0.0.1", headers=headers)
+
+    assert wat_httping._client_ip(req) == "127.0.0.1"
+
+
+@pytest.mark.parametrize(
+    "forwarded",
+    ['for="203.0.113.10:bad"', 'for="[2001:db8::10]:bad"'],
+    ids=("ipv4-bad-port", "ipv6-bad-port"),
+)
+def test_throttle_process_request_falls_back_for_malformed_forwarded_route(forwarded):
+    """A malformed ``Forwarded`` port falls back to the socket peer.
+
+    Falcon raises ``ValueError`` while assembling ``access_route`` for
+    ``Forwarded: for="203.0.113.10:bad"``. The request must still be throttled
+    by its actual socket peer rather than propagating that error, which surfaced
+    as an HTTP 500 for a loopback-proxied request.
+
+    The request is deliberately fresh: Falcon caches a partial ``access_route``
+    (``[]``) after a failed read, so touching ``access_route`` first would hide
+    the defect.
+    """
+    req = testing.create_req(remote_addr="127.0.0.1", headers={"Forwarded": forwarded})
+
+    assert wat_httping._client_ip(req) == "127.0.0.1"
+
+    db = basing.Baser(name="keri-v2-throttle-malformed-forwarded", temp=True)
+    try:
+        throttle = wat_httping.Throttle(db=db)
+        malformed = testing.create_req(
+            remote_addr="127.0.0.1", headers={"Forwarded": forwarded}
+        )
+        resp = SimpleNamespace(complete=False, status=None)
+
+        throttle.process_request(malformed, resp)
+
+        assert resp.complete is False
+        assert resp.status is None
+        assert db.ips.get(keys=("203.0.113.10",)) is None
+        assert db.ips.get(keys=("2001:db8::10",)) is None
+        reqs = db.ips.get(keys=("127.0.0.1",))
+        assert reqs is not None
+        assert reqs.count == 1
+    finally:
+        db.close(clear=True)
